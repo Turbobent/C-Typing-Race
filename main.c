@@ -8,7 +8,7 @@ void main(){
  char usersInput[100];
 
  printf("%s", typethis);
- scanf("%s", usersInput); 
+ fgets(usersInput, sizeof(usersInput), stdin);
  if(strcmp(typethis,usersInput) == 0){
     printf("win");
  }else{
