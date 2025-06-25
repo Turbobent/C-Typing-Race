@@ -1,7 +1,17 @@
 #include <stdio.h>
-#include <time.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <conio.h>
+#else
+#include <unistd.h>
+#include <termios.h>
+#include <sys/select.h>
+#endif
+
 
 char *typeFunctions = {""};
 char *typeText[] = {
@@ -48,25 +58,72 @@ char *typeText[] = {
     NULL
 };
 
-int main(){
- srand(time(NULL));
- int timer = 120;
- int count = 0;
- while (typeText[count] != NULL) count++;
- 
- int position = rand()% count;
- char *usersInput = malloc(10000);
- if (!usersInput) {
-        perror("Failed to allocate memory");
-        return 1;
-    }
- printf("%s", typeText[position]);
-    fgets(usersInput, 10000, stdin);
+int main() {
+    #ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    #endif
 
- if(strcmp(typeText[position],usersInput) == 0){
-    printf("win");
- }else{
-  printf("try again");
- }
- return 0;
+    srand(time(NULL));
+    int count = 0;
+    while (typeText[count] != NULL) count++;
+    int position = rand() % count;
+
+    printf("Type this within 120 seconds:\n\n%s\n", typeText[position]);
+    printf("Start typing below:\n");
+
+    char input[10000] = {0};
+    int idx = 0;
+    time_t start = time(NULL);
+
+    while (1) {
+        // Check if time is up
+        if (time(NULL) - start >= 12) {
+            printf("\n Time's up!\n");
+            break;
+        }
+
+     
+        #ifdef _WIN32
+        if (_kbhit()) {
+            char c = _getch();
+            if (c == '\r') break; 
+            if (c == '\b' && idx > 0) { 
+                printf("\b \b");
+                idx--;
+                input[idx] = '\0';
+            } else if (c >= 32 && c < 127 && idx < sizeof(input) - 1) {
+                putchar(c);
+                input[idx++] = c;
+            }
+        }
+        Sleep(10); 
+        #else
+        //for linux
+        struct timeval tv = {0, 10000};
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(0, &fds);
+        if (select(1, &fds, NULL, NULL, &tv)) {
+            char c;
+            read(0, &c, 1);
+            if (c == '\n') break;
+            if (c == 127 && idx > 0) { 
+                printf("\b \b");
+                idx--;
+                input[idx] = '\0';
+            } else if (idx < sizeof(input) - 1) {
+                putchar(c);
+                input[idx++] = c;
+            }
+        }
+        #endif
+    }
+
+    if (strncmp(input, typeText[position], strlen(typeText[position])) == 0) {
+        printf("Correct!\n");
+    } else {
+        printf("Try again.\n");
+    }
+
+    return 0;
 }
