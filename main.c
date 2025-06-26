@@ -2,17 +2,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-#ifdef _WIN32
 #include <windows.h>
 #include <conio.h>
-#else
-#include <unistd.h>
-#include <termios.h>
-#include <sys/select.h>
+
+#define COLOR_GREEN "\x1b[32m"
+#define COLOR_RED "\x1b[31m"
+#define COLOR_RESET "\x1b[0m"
+
+
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
 #endif
 
-
+//do now delete typeFunctions
 char *typeFunctions = {""};
 char *typeText[] = {
     "The beauty of typing lies not just in the speed with which your fingers move, but in the precision of your thoughts flowing directly into words. Each keystroke is a deliberate act, forming a bridge between your mind and the machine.\n",
@@ -58,17 +60,25 @@ char *typeText[] = {
     NULL
 };
 
+void enableAnsiColors() {
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD dwMode = 0;
+    GetConsoleMode(hOut, &dwMode);
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(hOut, dwMode);
+}
+
 int main() {
-    #ifdef _WIN32
-    SetConsoleOutputCP(CP_UTF8);
-    #endif
+    enableAnsiColors();
 
     srand(time(NULL));
     int count = 0;
     while (typeText[count] != NULL) count++;
     int position = rand() % count;
 
-    printf("Type this within 120 seconds:\n\n%s\n", typeText[position]);
+    const char *target = typeText[position];
+
+    printf("Type this within 60 seconds:\n\n%s\n", target);
     printf("Start typing below:\n");
 
     char input[10000] = {0};
@@ -76,53 +86,47 @@ int main() {
     time_t start = time(NULL);
 
     while (1) {
-        // Check if time is up
-        if (time(NULL) - start >= 12) {
-            printf("\n Time's up!\n");
+        //set how long the user have to type
+        if (time(NULL) - start >= 60) {
+            printf("\nTime's up!\n");
             break;
         }
 
-     
-        #ifdef _WIN32
         if (_kbhit()) {
             char c = _getch();
-            if (c == '\r') break; 
-            if (c == '\b' && idx > 0) { 
-                printf("\b \b");
+
+            if (c == '\r') break;
+
+            if ((c == '\b' || c == 127) && idx > 0) {
                 idx--;
                 input[idx] = '\0';
-            } else if (c >= 32 && c < 127 && idx < sizeof(input) - 1) {
-                putchar(c);
+            } else if (c >= 32 && c <= 126 && idx < sizeof(input) - 1) {
                 input[idx++] = c;
-            }
-        }
-        Sleep(10); 
-        #else
-        //for linux
-        struct timeval tv = {0, 10000};
-        fd_set fds;
-        FD_ZERO(&fds);
-        FD_SET(0, &fds);
-        if (select(1, &fds, NULL, NULL, &tv)) {
-            char c;
-            read(0, &c, 1);
-            if (c == '\n') break;
-            if (c == 127 && idx > 0) { 
-                printf("\b \b");
-                idx--;
                 input[idx] = '\0';
-            } else if (idx < sizeof(input) - 1) {
-                putchar(c);
-                input[idx++] = c;
             }
+
+            // Clear current line
+            printf("\r\033[K");
+
+            // Print colored output
+            for (int i = 0; i < idx; i++) {
+                if (input[i] == target[i]) {
+                    printf(COLOR_GREEN "%c" COLOR_RESET, input[i]);
+                } else {
+                    printf(COLOR_RED "%c" COLOR_RESET, input[i]);
+                }
+            }
+
+            fflush(stdout);
         }
-        #endif
+
+        Sleep(10);
     }
 
-    if (strncmp(input, typeText[position], strlen(typeText[position])) == 0) {
-        printf("Correct!\n");
+    if (strncmp(input, target, strlen(target)) == 0) {
+        printf(COLOR_GREEN "Correct!\n" COLOR_RESET);
     } else {
-        printf("Try again.\n");
+        printf(COLOR_RED "Try again.\n" COLOR_RESET);
     }
 
     return 0;
